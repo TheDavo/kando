@@ -141,6 +141,24 @@ func NewProject(name string) *Project {
 	return p
 }
 
+func FromFilePath(fp string) *Kando {
+	var k *Kando
+
+	bits, err := os.ReadFile(fp)
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = json.Unmarshal(bits, &k)
+	if err != nil {
+		panic(err)
+	}
+	k.Filepath = fp
+
+	return k
+}
+
 func NewKando(firstProjectName, fp string) *Kando {
 	newMeta := Meta{
 		Projects: []string{firstProjectName},
