@@ -1,0 +1,232 @@
+package kando
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"time"
+)
+
+type StatusDetailed string
+type Status int
+type Statuses map[string][]string
+
+const (
+	Todo Status = iota
+	InProgress
+	Done
+)
+
+type Task struct {
+	Id             int
+	Status         Status
+	StatusDetailed StatusDetailed
+	Description    string
+	DueDate        time.Time
+}
+
+type Project struct {
+	Name        string
+	Description string
+	LatestId    int `json:"latest-id"`
+	Statuses    Statuses
+	Tasks       map[int]Task
+}
+
+type Meta struct {
+	Projects []string
+}
+
+type Kando struct {
+	Meta     Meta
+	Projects map[string]*Project
+	Filepath string
+}
+
+var testJson = `
+
+{
+  "meta": {
+    "projects": [
+      "projectname"
+	]
+  },
+  "projects": 
+    {
+      "projectname": {
+        "name": "name",
+        "description": "desc",
+        "latest-id": 3,
+        "statuses": {
+          "todo": [
+            "todo"
+          ],
+          "in-progress": [
+            "in progress",
+            "waiting"
+          ],
+          "done": [
+            "done"
+          ]
+        },
+        "tasks": {
+          "1":{
+            "id": 1,
+            "status": 0,
+            "description": "hello"
+          },
+          "2":{
+            "status": 1,
+            "status-detailed": "waiting",
+            "id": 2,
+            "description": "my"
+          },
+          "3":{
+            "id": 3,
+            "status": 2,
+            "description": "world"
+          }
+        }
+      }
+    }
+}`
+
+func notMain() {
+	var test Kando
+
+	err := json.Unmarshal([]byte(testJson), &test)
+	if err != nil {
+		panic(err)
+	}
+
+	proj := test.Projects["projectname"]
+	taskToAdd := Task{
+		Status:         Todo,
+		StatusDetailed: "lazy",
+		Description:    "lazy",
+	}
+
+	proj.AddTask(taskToAdd)
+	err = proj.RemoveTask(0)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	proj.RemoveTask(1)
+
+	for _, val := range proj.Tasks {
+		fmt.Printf("\nTask \tid:%d\n\tDescription: %s\n\tduedate: %s\n",
+			val.Id, val.Description, val.DueDate.Local())
+	}
+
+	test.AddProject("testAddProject")
+	fmt.Println(test)
+
+}
+
+func NewProject(name string) *Project {
+	p := &Project{
+		Name:        name,
+		Description: "",
+		LatestId:    0,
+		Statuses: Statuses{
+			"todo":        []string{"todo"},
+			"in-progress": []string{"in-progress"},
+			"done":        []string{"done"},
+		},
+		Tasks: make(map[int]Task),
+	}
+
+	return p
+}
+
+func NewKando(firstProjectName, fp string) *Kando {
+	newMeta := Meta{
+		Projects: []string{firstProjectName},
+	}
+	newProj := NewProject(firstProjectName)
+	projs := map[string]*Project{
+		firstProjectName: newProj,
+	}
+	k := &Kando{
+		Meta:     newMeta,
+		Projects: projs,
+		Filepath: fp,
+	}
+	return k
+}
+
+func (p *Project) AddTask(task Task) {
+	p.LatestId++
+	task.Id = p.LatestId
+	p.Tasks[p.LatestId] = task
+}
+
+func (p *Project) RemoveTask(id int) error {
+
+	_, exists := p.Tasks[id]
+
+	if exists {
+		delete(p.Tasks, id)
+		return nil
+	}
+
+	return errors.New(
+		fmt.Sprintf("Task with id %d does not exist!", id))
+}
+
+func (k *Kando) Save() error {
+
+	file, err := os.OpenFile(k.Filepath, os.O_RDWR, 0644)
+
+	// Clear the contents of the file before writing the updated Kando content
+	file.Truncate(0)
+	if err != nil {
+		fmt.Println("File does not exist!")
+		panic("Error opening file")
+	}
+
+	bitties, _ := json.MarshalIndent(k, "", "\t")
+	_, err = file.Write(bitties)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (k *Kando) AddProject(projName string) error {
+	k.Meta.Projects = append(k.Meta.Projects, projName)
+	k.Projects[projName] = NewProject(projName)
+
+	return nil
+}
+
+func (k *Kando) RemoveProject(projName string) error {
+	_, exists := k.Projects[projName]
+
+	if exists {
+		delete(k.Projects, projName)
+
+		// Find index of the project in the Meta field and modify the slice
+		// to remove the Project
+		var idx int
+		for i, v := range k.Meta.Projects {
+			if v == projName {
+				idx = i
+			}
+		}
+		if idx == len(k.Meta.Projects) {
+			k.Meta.Projects = k.Meta.Projects[:idx]
+		} else {
+			k.Meta.Projects = append(k.Meta.Projects[:idx],
+				k.Meta.Projects[idx+1:]...)
+		}
+
+		return nil
+	}
+
+	return errors.New(
+		fmt.Sprintf("Project \"%s\" not found, nothing to delete",
+			projName))
+
+}
