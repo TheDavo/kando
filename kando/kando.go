@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"time"
+	// "time"
 )
 
 type StatusDetailed string
@@ -23,7 +23,7 @@ type Task struct {
 	Status         Status
 	StatusDetailed StatusDetailed
 	Description    string
-	DueDate        time.Time
+	// DueDate        time.Time
 }
 
 type Project struct {
@@ -116,8 +116,8 @@ func notMain() {
 	proj.RemoveTask(1)
 
 	for _, val := range proj.Tasks {
-		fmt.Printf("\nTask \tid:%d\n\tDescription: %s\n\tduedate: %s\n",
-			val.Id, val.Description, val.DueDate.Local())
+		fmt.Printf("\nTask \tid:%d\n\tDescription: %s\n",
+			val.Id, val.Description)
 	}
 
 	test.AddProject("testAddProject")
