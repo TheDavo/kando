@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"kando/kando"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/cursor"
@@ -13,9 +14,10 @@ type addTaskModel struct {
 	focusIndex int
 	inputs     []textinput.Model
 	cursorMode cursor.Mode
+	project    string
 }
 
-func AddTaskInitialModel() addTaskModel {
+func AddTaskInitialModel(proj string) addTaskModel {
 	m := addTaskModel{
 		inputs: make([]textinput.Model, 1),
 	}
@@ -32,6 +34,7 @@ func AddTaskInitialModel() addTaskModel {
 	t.TextStyle = focusedStyle
 
 	m.inputs[0] = t
+	m.project = proj
 
 	return m
 }
@@ -67,6 +70,20 @@ func (m addTaskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s := msg.String()
 
 			if s == "enter" && m.focusIndex == len(m.inputs) {
+
+				k := kando.Open()
+				newTask := kando.Task{
+					Description: m.inputs[0].Value(),
+					Status:      kando.Todo,
+				}
+
+				k.Projects[m.project].AddTask(newTask)
+
+				err := k.Save()
+
+				if err != nil {
+					panic(err)
+				}
 				return m, tea.Quit
 			}
 
