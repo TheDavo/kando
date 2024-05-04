@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	// "time"
 )
 
@@ -36,12 +37,12 @@ type Project struct {
 
 type Meta struct {
 	Projects []string
+	Filepath string
 }
 
 type Kando struct {
 	Meta     Meta
 	Projects map[string]*Project
-	Filepath string
 }
 
 var testJson = `
@@ -125,6 +126,44 @@ func notMain() {
 
 }
 
+func KandoFileExists(makeIfNot bool) (string, bool, error) {
+	existed := true
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	pathToKando := filepath.Join(homeDir, "kando", "kando.json")
+
+	_, err = os.Stat(pathToKando)
+
+	// if the file does not exist and a new one has to be made
+	if err != nil && makeIfNot {
+		os.Mkdir(filepath.Join(homeDir, "kando"), os.ModeDir)
+		file, err := os.Create(pathToKando)
+		if err != nil {
+			return "", false, err
+		}
+		file.Close()
+		existed = false
+	} else if err != nil && !makeIfNot {
+		return "", false, err
+	}
+
+	return pathToKando, existed, nil
+}
+
+func Open() *Kando {
+	p, _, err := KandoFileExists(false)
+
+	if err != nil {
+		panic(err)
+	}
+
+	k := FromFilePath(p)
+
+	return k
+}
+
 func NewProject(name string) *Project {
 	p := &Project{
 		Name:        name,
@@ -154,7 +193,7 @@ func FromFilePath(fp string) *Kando {
 	if err != nil {
 		panic(err)
 	}
-	k.Filepath = fp
+	k.Meta.Filepath = fp
 
 	return k
 }
@@ -162,6 +201,7 @@ func FromFilePath(fp string) *Kando {
 func NewKando(firstProjectName, fp string) *Kando {
 	newMeta := Meta{
 		Projects: []string{firstProjectName},
+		Filepath: fp,
 	}
 	newProj := NewProject(firstProjectName)
 	projs := map[string]*Project{
@@ -170,7 +210,6 @@ func NewKando(firstProjectName, fp string) *Kando {
 	k := &Kando{
 		Meta:     newMeta,
 		Projects: projs,
-		Filepath: fp,
 	}
 	return k
 }
@@ -195,8 +234,7 @@ func (p *Project) RemoveTask(id int) error {
 }
 
 func (k *Kando) Save() error {
-
-	file, err := os.OpenFile(k.Filepath, os.O_RDWR, 0644)
+	file, err := os.OpenFile(k.Meta.Filepath, os.O_RDWR, 0644)
 
 	// Clear the contents of the file before writing the updated Kando content
 	file.Truncate(0)
