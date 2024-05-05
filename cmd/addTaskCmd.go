@@ -37,6 +37,10 @@ func addTaskCmdFunc(cmd *cobra.Command, args []string) {
 
 	if !contains {
 		fmt.Println("Error: project", args[1], "not present in Kando file")
+		k := kando.Open()
+		for projNumber, projTitle := range k.Meta.Projects {
+			fmt.Println(projNumber, ",", projTitle)
+		}
 		return
 	}
 
