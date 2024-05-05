@@ -9,9 +9,9 @@ import (
 	// "time"
 )
 
-type StatusDetailed string
+type StatusDetailed = string
 type Status int
-type Statuses map[string][]string
+type Statuses map[string][]StatusDetailed
 
 const (
 	Todo Status = iota
