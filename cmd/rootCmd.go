@@ -37,6 +37,7 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(showCmd)
 	rootCmd.AddCommand(addCmd)
+	rootCmd.AddCommand(removeCmd)
 }
 
 func Execute() error {
