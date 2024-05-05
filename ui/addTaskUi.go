@@ -86,10 +86,15 @@ func (m addTaskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s := msg.String()
 
 			if s == "enter" && m.focusIndex == m.totalInputs {
+				m.dbg = ""
 
 				if m.inputs[0].Value() == "" {
-					m.dbg = "Please enter a description, task entry canceled!"
-					return m, tea.Quit
+					m.dbg += "Please enter a description, task entry canceled!\n"
+					return m, nil
+				}
+				if m.selStatusDetailed == "" {
+					m.dbg += "Please choose a status! Task entry canceled\n"
+					return m, nil
 				}
 				newTask := kando.Task{
 					Description:    m.inputs[0].Value(),
