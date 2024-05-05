@@ -11,15 +11,31 @@ import (
 )
 
 type addTaskModel struct {
-	focusIndex int
-	inputs     []textinput.Model
-	cursorMode cursor.Mode
-	project    string
+	focusIndex        int
+	focusStatus       int
+	inputs            []textinput.Model
+	totalInputs       int
+	cursorMode        cursor.Mode
+	project           string
+	statuses          kando.Statuses
+	selStatus         kando.Status
+	selStatusDetailed kando.StatusDetailed
+	k                 *kando.Kando
+	dbg               string
 }
 
 func AddTaskInitialModel(proj string) addTaskModel {
 	m := addTaskModel{
 		inputs: make([]textinput.Model, 1),
+		k:      kando.Open(),
+	}
+
+	m.statuses = m.k.Projects[proj].Statuses
+
+	m.totalInputs += len(m.inputs)
+
+	for _, v := range m.statuses {
+		m.totalInputs += len(v)
 	}
 
 	var t textinput.Model
@@ -69,22 +85,54 @@ func (m addTaskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab", "shift+tab", "enter", "up", "down":
 			s := msg.String()
 
-			if s == "enter" && m.focusIndex == len(m.inputs) {
+			if s == "enter" && m.focusIndex == m.totalInputs {
 
-				k := kando.Open()
+				if m.inputs[0].Value() == "" {
+					m.dbg = "Please enter a description, task entry canceled!"
+					return m, tea.Quit
+				}
 				newTask := kando.Task{
-					Description: m.inputs[0].Value(),
-					Status:      kando.Todo,
+					Description:    m.inputs[0].Value(),
+					Status:         m.selStatus,
+					StatusDetailed: m.selStatusDetailed,
 				}
 
-				k.Projects[m.project].AddTask(newTask)
+				m.k.Projects[m.project].AddTask(newTask)
 
-				err := k.Save()
+				err := m.k.Save()
 
 				if err != nil {
 					panic(err)
 				}
 				return m, tea.Quit
+			}
+
+			inStatusRange := m.focusIndex >= len(m.inputs) &&
+				m.focusIndex < m.totalInputs
+			statusOffset := len(m.inputs)
+			newIdx := m.focusIndex - statusOffset
+
+			lenTodo := len(m.statuses["todo"])
+			lenInProg := len(m.statuses["in-progress"])
+
+			inTodoRange := newIdx < lenTodo
+			inInProgRange := lenTodo <= newIdx &&
+				newIdx < (lenInProg+lenTodo)
+
+			if s == "enter" && inStatusRange {
+				if inTodoRange {
+					m.selStatus = kando.Todo
+					m.selStatusDetailed = m.statuses["todo"][newIdx]
+				} else if inInProgRange {
+					m.selStatus = kando.InProgress
+					m.selStatusDetailed =
+						m.statuses["in-progress"][newIdx-lenTodo]
+				} else {
+					m.selStatus = kando.Done
+					m.selStatusDetailed =
+						m.statuses["done"][newIdx-lenTodo-lenInProg]
+				}
+				m.focusStatus = m.focusIndex
 			}
 
 			// Cycle indexes
@@ -94,13 +142,13 @@ func (m addTaskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focusIndex++
 			}
 
-			if m.focusIndex > len(m.inputs) {
+			if m.focusIndex > m.totalInputs {
 				m.focusIndex = 0
 			} else if m.focusIndex < 0 {
-				m.focusIndex = len(m.inputs)
+				m.focusIndex = m.totalInputs
 			}
 
-			cmds := make([]tea.Cmd, len(m.inputs))
+			cmds := make([]tea.Cmd, m.totalInputs)
 			for i := 0; i <= len(m.inputs)-1; i++ {
 				if i == m.focusIndex {
 					// Set focused state
@@ -141,6 +189,7 @@ func (m *addTaskModel) updateInputs(msg tea.Msg) tea.Cmd {
 
 func (m addTaskModel) View() string {
 	var b strings.Builder
+	checked := " "
 
 	for i := range m.inputs {
 		// Update the textinput Views
@@ -150,11 +199,71 @@ func (m addTaskModel) View() string {
 		}
 	}
 
+	b.WriteRune('\n')
+	b.WriteRune('\n')
+
+	// Calc breakpoints for focused Style rendering
+	todoStart := len(m.inputs)
+	inProgStart := todoStart + len(m.statuses["todo"])
+	doneStart := inProgStart + len(m.statuses["in-progress"])
+
+	b.WriteString(todoStatusStyle.Render("Todo"))
+	b.WriteRune('\n')
+	for i, v := range m.statuses["todo"] {
+		if v == m.selStatusDetailed {
+			checked = "x"
+		} else {
+			checked = " "
+		}
+		renderStr := fmt.Sprintf("[%s] %s", checked, v)
+		if m.focusIndex == todoStart+i {
+			b.WriteString(focusedStyle.Render(renderStr))
+		} else {
+			b.WriteString(renderStr)
+		}
+	}
+	b.WriteRune('\n')
+	b.WriteRune('\n')
+	b.WriteString(inProgStatuStyle.Render("In Progress"))
+	b.WriteRune('\n')
+	for i, v := range m.statuses["in-progress"] {
+		if v == m.selStatusDetailed {
+			checked = "x"
+		} else {
+			checked = " "
+		}
+		renderStr := fmt.Sprintf("[%s] %s", checked, v)
+		if m.focusIndex == inProgStart+i {
+			b.WriteString(focusedStyle.Render(renderStr))
+		} else {
+			b.WriteString(renderStr)
+		}
+	}
+	b.WriteRune('\n')
+	b.WriteRune('\n')
+	b.WriteString(doneStyle.Render("Done"))
+	b.WriteRune('\n')
+	for i, v := range m.statuses["done"] {
+		if v == m.selStatusDetailed {
+			checked = "x"
+		} else {
+			checked = " "
+		}
+		renderStr := fmt.Sprintf("[%s] %s", checked, v)
+		if m.focusIndex == doneStart+i {
+			b.WriteString(focusedStyle.Render(renderStr))
+		} else {
+			b.WriteString(renderStr)
+		}
+	}
+	b.WriteRune('\n')
+
 	button := &blurredButton
-	if m.focusIndex == len(m.inputs) {
+	if m.focusIndex == m.totalInputs {
 		button = &focusedButton
 	}
 
+	b.WriteString(m.dbg)
 	fmt.Fprintf(&b, "\n\n%s\n\n", *button)
 
 	b.WriteString(helpStyle.Render("cursor mode is "))

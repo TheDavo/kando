@@ -15,4 +15,17 @@ var (
 
 	focusedButton = focusedStyle.Copy().Render("[ Submit ]")
 	blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Submit"))
+
+	todoStatusStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#990000")).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderBottom(true)
+	inProgStatuStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FFFF00")).
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderBottom(true)
+	doneStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#009900")).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderBottom(true)
 )
